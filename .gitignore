@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.edgeone/
+.env
+.env.local
+.env.*.local
+test-results/
+__pycache__/
+.venv/
+.DS_Store
+*.log
