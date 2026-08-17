@@ -14,7 +14,7 @@
 - **集成 HITL 面板** —— 前端展示待审批的工具调用、输出和可操作的错误信息。
 - **普通聊天仍可用** —— `POST /chat` 保留原有 SSE 流式聊天能力。
 
-示例中的 `send_email` 工具始终需要人工审批。它是安全的演示动作，可替换成你的真实副作用操作。
+示例中的 `submit_order` 工具始终需要人工审批。它是安全的演示动作，可替换成你的真实副作用操作。
 
 ## 路由
 
@@ -25,7 +25,7 @@
 | `/stop` | POST | 停止普通聊天运行。 |
 | `/history` | POST | 读取普通聊天历史。 |
 
-调用 HITL 时必须携带 `makers-conversation-id` 请求头。启动请求示例：`{ "message": "给 alice@example.com 发邮件" }`。需要审批时，响应只包含工具名和参数摘要，不包含序列化状态。继续运行时发送 `{ "action": "approve", "approvalIndex": 0 }` 或 `{ "action": "reject", "approvalIndex": 0 }`。
+调用 HITL 时必须携带 `makers-conversation-id` 请求头。启动请求示例：`{ "action": "start", "message": "Please submit order A-100" }`。需要审批时，响应为 `awaiting_approval`，只包含工具名和参数摘要，不包含序列化状态。继续运行时发送 `{ "action": "resume", "approved": true }` 或 `{ "action": "resume", "approved": false }`。缺失或损坏的状态返回 HTTP 409 与 `AGENT_STATE_NOT_FOUND` / `AGENT_STATE_CORRUPT`。
 
 ## 环境变量
 

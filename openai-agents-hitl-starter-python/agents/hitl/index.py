@@ -20,9 +20,9 @@ STATE_PREFIX = "openai-agents-hitl:"
 
 
 @function_tool(needs_approval=True)
-def send_email(to: str, subject: str, body: str) -> str:
-    """Send an email (demo action; always requires human approval)."""
-    return f'Email sent to {to} with subject "{subject}" (demo action).'
+def submit_order(order: str) -> str:
+    """Submit an order after the user explicitly asks you to place it (demo action; always requires human approval)."""
+    return f"order-submitted:{order}"
 
 
 def _response(payload: dict[str, Any], status: int = 200) -> dict[str, Any]:
@@ -88,11 +88,11 @@ def _create_agent(context: Any) -> Agent:
         name="HITL Assistant",
         instructions=(
             "You are an OpenAI Agents SDK human-in-the-loop demo on EdgeOne Makers. "
-            "Answer questions directly. If the user asks to send an email, call "
-            "send_email with the requested recipient, subject, and body. Sending is "
+            "Answer questions directly. If the user asks to submit an order, call "
+            "submit_order with the order to submit. Submitting is "
             "a demo action and must wait for explicit human approval."
         ),
-        tools=[send_email],
+        tools=[submit_order],
         model=model,
     )
 
@@ -113,17 +113,18 @@ async def handler(context: Any) -> dict[str, Any]:
 
     key = _state_key(conversation_id)
     stored = await _read_state(context, key)
-    action = body.get("action") if body.get("action") in ("approve", "reject") else None
+    # Contract aligned with the Node template: action "resume" + approved boolean.
+    action = "approve" if body.get("action") == "resume" else None
     agent = _create_agent(context)
 
     if action:
         if not stored:
-            return _response({"error": "No pending approval was found", "code": "HITL_STATE_MISSING"}, 404)
+            return _response({"error": "No pending approval exists.", "code": "AGENT_STATE_NOT_FOUND"}, 409)
         try:
             state = await RunState.from_string(agent, stored)
         except Exception as error:
             logger.error(f"corrupt RunState: {type(error).__name__}: {error}")
-            return _response({"error": "The pending approval state is corrupt", "code": "HITL_STATE_CORRUPT"}, 409)
+            return _response({"error": "The pending approval state is corrupt", "code": "AGENT_STATE_CORRUPT"}, 409)
 
         interruptions = state.get_interruptions()
         index = body.get("approvalIndex", 0)
@@ -132,11 +133,14 @@ async def handler(context: Any) -> dict[str, Any]:
         approval = interruptions[index] if index < len(interruptions) else None
         if approval is None:
             return _response({"error": "The approval request is no longer available", "code": "HITL_APPROVAL_MISSING"}, 400)
-        if action == "approve":
+        approved = body.get("approved")
+        if approved is True:
             state.approve(approval)
+        elif approved is False:
+            state.reject(approval, rejection_message="The user rejected this action.")
         else:
-            state.reject(approval)
-        result = await Runner.run(agent, state=state)
+            return _response({"error": "'approved' must be a boolean"}, 400)
+        result = await Runner.run(agent, state)  # resume: RunState is the positional `input`
     else:
         message = body.get("message") if isinstance(body.get("message"), str) else ""
         message = message.strip()
@@ -152,7 +156,7 @@ async def handler(context: Any) -> dict[str, Any]:
     pending = state.get_interruptions()
     if pending:
         await _write_state(context, key, state.to_string())
-        return {"status": "needs_approval", "approval": _approval_summary(pending[0], 0)}
+        return {"status": "awaiting_approval", "interruptions": [_approval_summary(pending[0], 0)]}
 
     await _delete_state(context, key)
     return {"status": "completed", "output": result.final_output or ""}

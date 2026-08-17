@@ -14,7 +14,7 @@
 - **集成 HITL 面板** —— 前端展示待审批工具调用、执行结果和错误。
 - **普通聊天仍可用** —— `POST /chat` 保持普通流式聊天、会话记忆和示例工具能力。
 
-示例 `send_email` 工具始终需要人工审批。它是安全的演示动作，可替换为实际副作用。
+示例 `submit_order` 工具始终需要人工审批。它是安全的演示动作，可替换为实际副作用。
 
 ## 路由
 
@@ -25,7 +25,7 @@
 | `/stop` | POST | 停止普通聊天运行。 |
 | `/history` | POST | 加载普通聊天历史。 |
 
-`/hitl` 请求必须携带 `makers-conversation-id` 请求头。使用 `{ "message": "Send an email..." }` 启动；需要审批时，响应只包含工具名和参数摘要，不包含序列化状态。随后发送 `{ "action": "approve", "approvalIndex": 0 }` 或 `{ "action": "reject", "approvalIndex": 0 }`。运行完成后会清理服务端状态。
+`/hitl` 请求必须携带 `makers-conversation-id` 请求头。使用 `{ "action": "start", "message": "Please submit order A-100" }` 启动；需要审批时，响应为 `awaiting_approval`，只包含工具名和参数摘要，不包含序列化状态。随后发送 `{ "action": "resume", "approved": true }` 或 `{ "action": "resume", "approved": false }`。运行完成后会清理服务端状态。
 
 ## 环境变量
 
